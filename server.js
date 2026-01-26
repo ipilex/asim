@@ -6,6 +6,8 @@ import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
 import OpenAI from "openai";
+import { AI_CONFIG } from "./config/ai.config.js";
+
 
 dotenv.config();
 
@@ -58,12 +60,12 @@ app.post("/api/asim-chat", async (req, res) => {
   // Проверяем наличие переменных окружения
   const apiKey = process.env.OPENAI_API_KEY?.trim();
   const assistantId = ASIM_ASSISTANT_ID?.trim();
-  
+
   if (!apiKey || !assistantId) {
     const missing = [];
     if (!apiKey) missing.push("OPENAI_API_KEY");
     if (!assistantId) missing.push("ASIM_ASSISTANT_ID");
-    
+
     console.error(`Хəta: Aşağıdakı dəyişənlər təyin edilməyib: ${missing.join(", ")}`);
     return res.status(500).json({
       error: `Server düzgün qurulmayıb. .env faylında aşağıdakı dəyişənləri yoxlayın: ${missing.join(", ")}`,
@@ -86,6 +88,8 @@ app.post("/api/asim-chat", async (req, res) => {
 
     const run = await client.beta.threads.runs.createAndPoll(thread.id, {
       assistant_id: assistantId,
+      temperature: AI_CONFIG?.temperature ?? 0.1,
+      top_p: AI_CONFIG?.top_p ?? 1.0
     });
 
     if (run.status !== "completed") {
