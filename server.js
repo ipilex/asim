@@ -103,7 +103,7 @@ Rules for Asan Imza AI assistant:
       content: enrichedMessage,
     });
 
-    const run = await client.beta.threads.runs.createAndPoll(thread.id, {
+    let run = await client.beta.threads.runs.createAndPoll(thread.id, {
       assistant_id: assistantId,
       temperature: AI_CONFIG?.temperature ?? 0.1,
       top_p: AI_CONFIG?.top_p ?? 1.0
@@ -115,6 +115,36 @@ Rules for Asan Imza AI assistant:
       });
     }
 
+    // Verify that the run used File Search; if not, rerun with strict File Search instructions
+    const stepsResponse = await client.beta.threads.runs.steps.list(thread.id, run.id);
+    let fileSearchUsed = false;
+    for (const step of stepsResponse.data ?? []) {
+      if (step.step_details?.type === "tool_calls" && Array.isArray(step.step_details.tool_calls)) {
+        if (step.step_details.tool_calls.some((tc) => tc.type === "file_search")) {
+          fileSearchUsed = true;
+          break;
+        }
+      }
+    }
+    if (!fileSearchUsed) {
+      run = await client.beta.threads.runs.createAndPoll(thread.id, {
+        assistant_id: assistantId,
+        temperature: AI_CONFIG?.temperature ?? 0.1,
+        top_p: AI_CONFIG?.top_p ?? 1.0,
+        additional_instructions: `
+Use File Search in the attached Asan Imza documents BEFORE answering.
+Do not answer from memory.
+If you cannot find the information in documents, say "Not found in documents" and ask a clarifying question.
+Return a detailed answer based ONLY on documents.
+`
+      });
+      if (run.status !== "completed") {
+        return res.status(500).json({
+          error: "Asİm cavabı tamamlamadı. Bir az sonra yenidən cəhd edin.",
+        });
+      }
+    }
+
     const messages = await client.beta.threads.messages.list(thread.id, {
       order: "desc",
       limit: 1,
@@ -124,14 +154,16 @@ Rules for Asan Imza AI assistant:
     let replyText = "";
 
     if (last && Array.isArray(last.content) && last.content.length > 0) {
-      const textPart = last.content[0];
-      if (textPart.type === "text") {
-        replyText = textPart.text.value;
-      }
+      const textParts = last.content
+        .filter((part) => part.type === "text")
+        .map((part) => part.text?.value ?? "")
+        .filter(Boolean);
+      replyText = textParts.join("\n");
     }
 
-    if (!replyText) {
-      replyText = "Hazırda cavab yarada bilmədim, zəhmət olmasa yenidən cəhd edin.";
+    const notFoundFallback = "Bu məlumat əlavə edilmiş rəsmi Asan İmza sənədlərində tapılmadı. Zəhmət olmasa dəqiqləşdirin: bu kod harada çıxır (portal, mobil tətbiq, operator menyusu), hansı operator (Azercell/Bakcell/Nar), və hansı nömrə üzərində problem var?";
+    if (!replyText || /not found in documents/i.test(replyText)) {
+      replyText = notFoundFallback;
     }
 
     // Thread ID-ni client-ə qaytarırıq ki, sonrakı mesajlar üçün eyni thread-i istifadə edə bilsin
