@@ -85,17 +85,24 @@ app.post("/api/asim-chat", async (req, res) => {
 User input: ${userMessage}
 
 Rules for Asan Imza AI assistant:
-- ALWAYS search in attached Asan Imza documents using File Search before answering
-- If input is short like a code (example: "0035"), treat it as an error/status code
-- Find explanation in documents and answer fully
-- Answer in user's language (Azerbaijani/Russian/English)
-- Always give detailed response:
-  meaning of error,
-  reason,
-  step-by-step solution,
-  where to contact support if needed
-- NEVER answer too briefly
-- If not found in documents, say it clearly and ask clarifying question
+- ALWAYS search in attached Asan Imza documents using File Search before answering.
+- Do not answer from memory. If not found in documents, say "Not found in documents" and ask where the error appears (portal / app / SIM menu).
+
+When user input is or contains an error code (e.g. "0035"):
+1) Use File Search to find the EXACT string "ERROR_CODE: 0035" (or "ERROR_CODE: <code>" for the given code).
+2) Return the matched section with these headings exactly:
+   - ERROR_CODE
+   - ERROR_TITLE
+   - DESCRIPTION
+   - CAUSES
+   - SOLUTION
+3) If more than one match exists for the same code, show all titles and ask the user which one matches their screen.
+4) If not found, say "Not found in documents" and ask where the error appears (portal, app, SIM menu).
+
+General:
+- Answer in user's language (Azerbaijani/Russian/English).
+- Give detailed responses (meaning, reason, step-by-step solution, where to contact support if needed).
+- NEVER answer too briefly.
 `;
 
     await client.beta.threads.messages.create(thread.id, {
@@ -105,8 +112,10 @@ Rules for Asan Imza AI assistant:
 
     let run = await client.beta.threads.runs.createAndPoll(thread.id, {
       assistant_id: assistantId,
+      model: "gpt-4.1",
       temperature: AI_CONFIG?.temperature ?? 0.1,
-      top_p: AI_CONFIG?.top_p ?? 1.0
+      top_p: AI_CONFIG?.top_p ?? 1.0,
+      tool_choice: "auto"
     });
 
     if (run.status !== "completed") {
@@ -129,13 +138,14 @@ Rules for Asan Imza AI assistant:
     if (!fileSearchUsed) {
       run = await client.beta.threads.runs.createAndPoll(thread.id, {
         assistant_id: assistantId,
+        model: "gpt-4.1",
         temperature: AI_CONFIG?.temperature ?? 0.1,
         top_p: AI_CONFIG?.top_p ?? 1.0,
+        tool_choice: "auto",
         additional_instructions: `
-Use File Search in the attached Asan Imza documents BEFORE answering.
-Do not answer from memory.
-If you cannot find the information in documents, say "Not found in documents" and ask a clarifying question.
-Return a detailed answer based ONLY on documents.
+Use File Search in the attached Asan Imza documents BEFORE answering. Do not answer from memory.
+If the user input is or contains an error code (e.g. "0035"), search for the EXACT string "ERROR_CODE: <code>" and return the matched section with these headings exactly: ERROR_CODE, ERROR_TITLE, DESCRIPTION, CAUSES, SOLUTION. If more than one match exists for the same code, show all titles and ask which one matches their screen.
+If you cannot find the information in documents, say "Not found in documents" and ask where the error appears (portal, app, SIM menu). Return a detailed answer based ONLY on documents.
 `
       });
       if (run.status !== "completed") {
