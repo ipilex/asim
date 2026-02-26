@@ -81,9 +81,26 @@ app.post("/api/asim-chat", async (req, res) => {
       thread = await client.beta.threads.create();
     }
 
+    const enrichedMessage = `
+User input: ${userMessage}
+
+Rules for Asan Imza AI assistant:
+- ALWAYS search in attached Asan Imza documents using File Search before answering
+- If input is short like a code (example: "0035"), treat it as an error/status code
+- Find explanation in documents and answer fully
+- Answer in user's language (Azerbaijani/Russian/English)
+- Always give detailed response:
+  meaning of error,
+  reason,
+  step-by-step solution,
+  where to contact support if needed
+- NEVER answer too briefly
+- If not found in documents, say it clearly and ask clarifying question
+`;
+
     await client.beta.threads.messages.create(thread.id, {
       role: "user",
-      content: userMessage,
+      content: enrichedMessage,
     });
 
     const run = await client.beta.threads.runs.createAndPoll(thread.id, {
