@@ -45,6 +45,14 @@ function sanitizeReply(text) {
       .replace(/\([0-9]+(?::[0-9]+)?[^\)]*\)/g, "")
       // Bir neçə boşluğu tək boşluğa endirir
       .replace(/\s{2,}/g, " ")
+      .replace(/\*\*?ERROR_CODE:\s*\*?\*?/gi, "")
+      .replace(/\*\*?ERROR_TITLE:\s*\*?\*?/gi, "")
+      .replace(/\*\*?DESCRIPTION:\s*\*?\*?/gi, "")
+      .replace(/\*\*?CAUSES:\s*\*?\*?/gi, "")
+      .replace(/\*\*?SOLUTION:\s*\*?\*?/gi, "")
+      .replace(/\*\*/g, "")
+      .replace(/[ \t]+\n/g, "\n")
+      .replace(/\n{3,}/g, "\n\n")
       .trim()
   );
 }
