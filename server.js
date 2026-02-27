@@ -37,6 +37,7 @@ function sanitizeReply(text) {
   if (!text) return "";
   return (
     text
+      .replace(/\r\n/g, "\n")
       // OpenAI sənəd istinadları:  və oxşar
       .replace(/【[^】]*】/g, "")
       // Kvadrat mötərizədəki sitatlar: [1], [1:0], [1:0†file]
@@ -44,7 +45,7 @@ function sanitizeReply(text) {
       // Dairəvi mötərizədəki sitatlar: (1), (1:0), (1:0†file)
       .replace(/\([0-9]+(?::[0-9]+)?[^\)]*\)/g, "")
       // Bir neçə boşluğu tək boşluğa endirir
-      .replace(/\s{2,}/g, " ")
+      .replace(/[ \t]{2,}/g, " ")
       .replace(/\*\*?ERROR_CODE:\s*\*?\*?/gi, "")
       .replace(/\*\*?ERROR_TITLE:\s*\*?\*?/gi, "")
       .replace(/\*\*?DESCRIPTION:\s*\*?\*?/gi, "")
