@@ -89,7 +89,7 @@ Rules for Asan Imza AI assistant:
 - Do not answer from memory. If not found in documents, say "Not found in documents" and ask where the error appears (portal / app / SIM menu).
 
 When user input is or contains an error code (e.g. "0035"):
-1) Use File Search to find the EXACT string "ERROR_CODE: 0035" (or "ERROR_CODE: <code>" for the given code).
+1) Use File Search to find the EXACT string "ERROR_CODE: <code>" where <code> is the code from the user input (e.g. 0035).
 2) Return the matched section with these headings exactly:
    - ERROR_CODE
    - ERROR_TITLE
@@ -107,7 +107,7 @@ General:
 
     await client.beta.threads.messages.create(thread.id, {
       role: "user",
-      content: enrichedMessage,
+      content: userMessage,
     });
 
     let run = await client.beta.threads.runs.createAndPoll(thread.id, {
@@ -115,7 +115,8 @@ General:
       model: "gpt-4.1",
       temperature: AI_CONFIG?.temperature ?? 0.1,
       top_p: AI_CONFIG?.top_p ?? 1.0,
-      tool_choice: "auto"
+      tool_choice: "auto",
+      instructions: enrichedMessage
     });
 
     if (run.status !== "completed") {
@@ -143,9 +144,9 @@ General:
         top_p: AI_CONFIG?.top_p ?? 1.0,
         tool_choice: "auto",
         instructions: `
-You MUST use File Search in the attached Asan Imza documents BEFORE answering.
-Do not answer from memory.
-If you cannot find the information in documents, say "Not found in documents" and ask a clarifying question.
+You MUST use File Search in the attached Asan Imza documents BEFORE answering. Do not skip this step.
+Do not answer from memory. Answer ONLY from the search results.
+If you cannot find the information in documents, say "Not found in documents" and ask where the error appears (portal, app, SIM menu).
 Return a detailed answer based ONLY on documents.
 `,
       });
