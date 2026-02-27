@@ -142,7 +142,7 @@ General:
         temperature: AI_CONFIG?.temperature ?? 0.1,
         top_p: AI_CONFIG?.top_p ?? 1.0,
         tool_choice: "auto",
-        additional_instructions: `
+        instructions: `
 You MUST use File Search in the attached Asan Imza documents BEFORE answering.
 Do not answer from memory.
 If you cannot find the information in documents, say "Not found in documents" and ask a clarifying question.
@@ -189,10 +189,14 @@ Return a detailed answer based ONLY on documents.
     }
 
     // Thread ID-ni client-ə qaytarırıq ki, sonrakı mesajlar üçün eyni thread-i istifadə edə bilsin
+    const debug = process.env.DEBUG === "1"
+      ? { runId: run.id, model: run.model ?? null, usedFileSearch }
+      : undefined;
+
     return res.json({
       reply: sanitizeReply(replyText),
       threadId: thread.id,
-      debug: { runId: run.id, model: run.model ?? null, usedFileSearch }
+      ...(debug ? { debug } : {})
     });
   } catch (err) {
     console.error("Asİm API xətası:", err);
