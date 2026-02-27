@@ -124,15 +124,17 @@ General:
       });
     }
 
-    const steps = await client.beta.threads.runs.steps.list(thread.id, run.id);
-    const usedFileSearch = steps.data?.some((s) =>
+    // ---- Check whether file_search was used (for the current run)
+    let steps = await client.beta.threads.runs.steps.list(thread.id, run.id);
+
+    let usedFileSearch = steps.data?.some((s) =>
       s.step_details?.type === "tool_calls" &&
       (s.step_details.tool_calls || []).some((tc) => tc.type === "file_search")
     );
 
-    console.log("DEBUG usedFileSearch:", usedFileSearch);
+    console.log("DEBUG usedFileSearch (run #1):", usedFileSearch);
 
-    // Если не использовал File Search — принудительно перезапускаем
+    // ---- If file_search was NOT used, rerun with strict instructions
     if (!usedFileSearch) {
       run = await client.beta.threads.runs.createAndPoll(thread.id, {
         assistant_id: assistantId,
@@ -141,17 +143,28 @@ General:
         top_p: AI_CONFIG?.top_p ?? 1.0,
         tool_choice: "auto",
         additional_instructions: `
-Use File Search in the attached Asan Imza documents BEFORE answering.
+You MUST use File Search in the attached Asan Imza documents BEFORE answering.
 Do not answer from memory.
 If you cannot find the information in documents, say "Not found in documents" and ask a clarifying question.
 Return a detailed answer based ONLY on documents.
-`
+`,
       });
+
       if (run.status !== "completed") {
         return res.status(500).json({
           error: "Asİm cavabı tamamlamadı. Bir az sonra yenidən cəhd edin.",
         });
       }
+
+      // Re-check steps for rerun
+      steps = await client.beta.threads.runs.steps.list(thread.id, run.id);
+
+      usedFileSearch = steps.data?.some((s) =>
+        s.step_details?.type === "tool_calls" &&
+        (s.step_details.tool_calls || []).some((tc) => tc.type === "file_search")
+      );
+
+      console.log("DEBUG usedFileSearch (run #2):", usedFileSearch);
     }
 
     const messages = await client.beta.threads.messages.list(thread.id, {
