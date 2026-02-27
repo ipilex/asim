@@ -124,19 +124,15 @@ General:
       });
     }
 
-    const stepsResponse = await client.beta.threads.runs.steps.list(thread.id, run.id);
-    let usedFileSearch = false;
-    for (const step of stepsResponse.data ?? []) {
-      if (step.step_details?.type === "tool_calls" && Array.isArray(step.step_details.tool_calls)) {
-        if (step.step_details.tool_calls.some((tc) => tc.type === "file_search")) {
-          usedFileSearch = true;
-          break;
-        }
-      }
-    }
-    console.log("usedFileSearch:", usedFileSearch);
+    const steps = await client.beta.threads.runs.steps.list(thread.id, run.id);
+    const usedFileSearch = steps.data?.some((s) =>
+      s.step_details?.type === "tool_calls" &&
+      (s.step_details.tool_calls || []).some((tc) => tc.type === "file_search")
+    );
 
-    // Verify that the run used File Search; if not, rerun with strict File Search instructions
+    console.log("DEBUG usedFileSearch:", usedFileSearch);
+
+    // Если не использовал File Search — принудительно перезапускаем
     if (!usedFileSearch) {
       run = await client.beta.threads.runs.createAndPoll(thread.id, {
         assistant_id: assistantId,
@@ -145,9 +141,10 @@ General:
         top_p: AI_CONFIG?.top_p ?? 1.0,
         tool_choice: "auto",
         additional_instructions: `
-Use File Search in the attached Asan Imza documents BEFORE answering. Do not answer from memory.
-If the user input is or contains an error code (e.g. "0035"), search for the EXACT string "ERROR_CODE: <code>" and return the matched section with these headings exactly: ERROR_CODE, ERROR_TITLE, DESCRIPTION, CAUSES, SOLUTION. If more than one match exists for the same code, show all titles and ask which one matches their screen.
-If you cannot find the information in documents, say "Not found in documents" and ask where the error appears (portal, app, SIM menu). Return a detailed answer based ONLY on documents.
+Use File Search in the attached Asan Imza documents BEFORE answering.
+Do not answer from memory.
+If you cannot find the information in documents, say "Not found in documents" and ask a clarifying question.
+Return a detailed answer based ONLY on documents.
 `
       });
       if (run.status !== "completed") {
@@ -155,7 +152,6 @@ If you cannot find the information in documents, say "Not found in documents" an
           error: "Asİm cavabı tamamlamadı. Bir az sonra yenidən cəhd edin.",
         });
       }
-      usedFileSearch = true;
     }
 
     const messages = await client.beta.threads.messages.list(thread.id, {
