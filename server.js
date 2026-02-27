@@ -124,18 +124,20 @@ General:
       });
     }
 
-    // Verify that the run used File Search; if not, rerun with strict File Search instructions
     const stepsResponse = await client.beta.threads.runs.steps.list(thread.id, run.id);
-    let fileSearchUsed = false;
+    let usedFileSearch = false;
     for (const step of stepsResponse.data ?? []) {
       if (step.step_details?.type === "tool_calls" && Array.isArray(step.step_details.tool_calls)) {
         if (step.step_details.tool_calls.some((tc) => tc.type === "file_search")) {
-          fileSearchUsed = true;
+          usedFileSearch = true;
           break;
         }
       }
     }
-    if (!fileSearchUsed) {
+    console.log("usedFileSearch:", usedFileSearch);
+
+    // Verify that the run used File Search; if not, rerun with strict File Search instructions
+    if (!usedFileSearch) {
       run = await client.beta.threads.runs.createAndPoll(thread.id, {
         assistant_id: assistantId,
         model: "gpt-4.1",
@@ -153,6 +155,7 @@ If you cannot find the information in documents, say "Not found in documents" an
           error: "Asİm cavabı tamamlamadı. Bir az sonra yenidən cəhd edin.",
         });
       }
+      usedFileSearch = true;
     }
 
     const messages = await client.beta.threads.messages.list(thread.id, {
@@ -177,7 +180,11 @@ If you cannot find the information in documents, say "Not found in documents" an
     }
 
     // Thread ID-ni client-ə qaytarırıq ki, sonrakı mesajlar üçün eyni thread-i istifadə edə bilsin
-    return res.json({ reply: sanitizeReply(replyText), threadId: thread.id });
+    return res.json({
+      reply: sanitizeReply(replyText),
+      threadId: thread.id,
+      debug: { runId: run.id, model: run.model ?? null, usedFileSearch }
+    });
   } catch (err) {
     console.error("Asİm API xətası:", err);
     return res.status(500).json({ error: "Asİm ilə əlaqə zamanı xəta baş verdi." });
